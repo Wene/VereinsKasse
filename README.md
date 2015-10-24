@@ -1,1 +1,3 @@
 # VereinsKasse
+
+Experimentelles Projekt - soll mal ein Kassenbuch für Vereine werden...
