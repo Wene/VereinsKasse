@@ -68,6 +68,8 @@ class MainWin(QMainWindow):
         self.status_bar.showMessage("Keine Datenbank geladen - "
                                     "Öffne eine Datenbank oder leg eine neue an.")
 
+        self.sql_database = QSqlDatabase("QSQLITE")
+
         # restore settings
         self.settings = QSettings()
         self.move(self.settings.value("Position", QPoint(100, 100)))
@@ -86,12 +88,35 @@ class MainWin(QMainWindow):
         self.open_database(filename)
 
     def open_database(self, filename: str):
-        self.sql_database = QSqlDatabase("QSQLITE")
         self.sql_database.setDatabaseName(filename)
         if self.sql_database.open():
+
             # TODO: check for correct DB schema
+            table_list = self.sql_database.tables()
+            for table in table_list:
+                self.debug.appendPlainText(table)
+                record = self.sql_database.record(table)
+                assert isinstance(record, QSqlRecord)
+                for i in range(record.count()):
+                    text = "  "
+                    text += record.fieldName(i)
+                    text += ": "
+                    field_type = record.value(i)
+                    if isinstance(field_type, str):
+                        text += "String"
+                    elif isinstance(field_type, int):
+                        text += "Integer"
+                    elif isinstance(field_type, float):
+                        text += "Float"
+                    self.debug.appendPlainText(text)
+
             self.debug.appendPlainText("Erfolgreich verbunden mit:")
             self.debug.appendPlainText(filename)
+            model = QSqlTableModel(self, self.sql_database)
+            model.setTable("transactions")
+            model.select()
+            self.konto_view.setModel(model)
+
             # write last successful used filename to settings
             self.settings.setValue("Filename", filename)
         else:
