@@ -114,8 +114,15 @@ class MainWin(QMainWindow):
             self.debug.appendPlainText(filename)
             model = QSqlTableModel(self, self.sql_database)
             model.setTable("transactions")
+            model.setEditStrategy(QSqlTableModel.OnFieldChange)
             model.select()
             self.konto_view.setModel(model)
+
+            # TODO: find proper solution to add empty row
+            my_record = model.record()
+            my_record.setValue(1, 0)
+            model.insertRecord(-1, my_record)
+            model.select()
 
             # write last successful used filename to settings
             self.settings.setValue("Filename", filename)
