@@ -52,8 +52,8 @@ class MainWin(QMainWindow):
 
         # create central widget
         tabs = QTabWidget()
-        self.konto_view = QTableView()
-        tabs.addTab(self.konto_view, "Konto")
+        self.account_view = QTableView()
+        tabs.addTab(self.account_view, "Kontobewegungen")
         self.member_view = QTableView()
         tabs.addTab(self.member_view, "Mitglieder")
         self.debug = QPlainTextEdit()
@@ -139,17 +139,18 @@ class MainWin(QMainWindow):
 
             self.debug.appendPlainText("Erfolgreich verbunden mit:")
             self.debug.appendPlainText(filename)
-            model = QSqlTableModel(self, self.sql_database)
-            model.setTable("transactions")
-            model.setEditStrategy(QSqlTableModel.OnFieldChange)
-            model.select()
-            self.konto_view.setModel(model)
 
-            # TODO: find proper solution to add empty row
-            my_record = model.record()
-            my_record.setValue(1, 0)
-            model.insertRecord(-1, my_record)
-            model.select()
+            # activate foreign keys - needs to be issued every time again
+            sql_query = QSqlQuery(self.sql_database)
+            sql_query.exec("PRAGMA foreign_keys = ON")
+
+            model = QSqlQueryModel(self)
+            model.setQuery("SELECT first_name, last_name, nick_name, email FROM member", self.sql_database)
+            model.setHeaderData(0, Qt.Horizontal, "Vorname")
+            model.setHeaderData(1, Qt.Horizontal, "Name")
+            model.setHeaderData(2, Qt.Horizontal, "Nickname")
+            model.setHeaderData(3, Qt.Horizontal, "E-Mail Adresse")
+            self.member_view.setModel(model)
 
             # write last successful used filename to settings
             self.settings.setValue("Filename", filename)
@@ -164,7 +165,8 @@ class MainWin(QMainWindow):
             else:
                 # TODO: create proper database schema
                 # sqlite supports only one statement per transaction - splitting statements in a list
-                queries = ['CREATE TABLE transactions ('
+                queries = ['PRAGMA foreign_keys = ON',  # needs to be issued every time the database is used
+                           'CREATE TABLE transactions ('
                            'id                 INTEGER PRIMARY KEY AUTOINCREMENT,'
                            'date               TEXT,'
                            'original_text      TEXT,'
@@ -173,20 +175,30 @@ class MainWin(QMainWindow):
                            ')',
                            'CREATE TABLE member ('
                            'id                 INTEGER PRIMARY KEY AUTOINCREMENT,'
-                           'first_name         TEXT NOT NULL,'
-                           'last_name          TEXT NOT NULL,'
-                           'e-mail             TEXT'
+                           'first_name         TEXT,'
+                           'last_name          TEXT,'
+                           'nick_name          TEXT,'
+                           'email              TEXT'
                            ')',
-                           'CREATE TABLE shares ('
+                           'CREATE TABLE share ('
                            'id                 INTEGER PRIMARY KEY AUTOINCREMENT,'
                            'name               TEXT,'
                            'description        TEXT,'
                            'interval           TEXT,'
                            'amount             INTEGER'
+                           ')',
+                           'CREATE TABLE member_share ('
+                           'id                 INTEGER PRIMARY KEY AUTOINCREMENT,'
+                           'member_id          INTEGER REFERENCES member(id) ON DELETE CASCADE,'
+                           'share_id           INTEGER REFERENCES share(id) ON DELETE CASCADE'
                            ')']
                 for query in queries:
                     sql_query = QSqlQuery(self.sql_database)
-                    sql_query.exec(query)
+                    if not sql_query.exec(query):
+                        self.debug.appendPlainText("--Fehler beim ausführen dieser Query:")
+                        self.debug.appendPlainText(query)
+                        self.debug.appendPlainText("--Der Fehler lautet:")
+                        self.debug.appendPlainText(sql_query.lastError().text())
                 self.sql_database.close()
                 self.open_database(filename)
 
