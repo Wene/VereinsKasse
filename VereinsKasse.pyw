@@ -15,8 +15,8 @@ class MainWin(QMainWindow):
         ''':type file_menu: QMenu'''
         act_new = QAction("&Neu", self)
         act_new.setShortcut("CTRL+N")
-        act_new.setEnabled(False)
         act_new.setStatusTip("Legt eine neue SqLite Datenbank mit der erforderlichen Struktur an.")
+        act_new.triggered.connect(self.new_dialog)
         act_open = QAction("Ö&ffnen...", self)
         act_open.setShortcut("CTRL+O")
         act_open.setStatusTip("Öffnet eine vorhandene SqLite Datenbank mit der erforderlichen Struktur.")
@@ -80,12 +80,29 @@ class MainWin(QMainWindow):
         self.settings.setValue("Position", self.pos())
         self.settings.setValue("Size", self.size())
 
+        # close database connection, if existing
+        self.sql_database.close()
+
     def open_dialog(self):
         last_file = self.settings.value("Filename", ".")
         filename, active_filter = QFileDialog.getOpenFileName(self, "Datenbank öffnen",
                                                               last_file,
                                                               "SqLite Datenbankdateien (*.db);;Alle Dateien (*)")
         self.open_database(filename)
+
+    def new_dialog(self):
+        str_filter_db = "SqLite Datenbankdateien (*.db)"
+        str_filter_all = "Alle Dateien (*)"
+        str_filter = str_filter_db + ";;" + str_filter_all
+        path_info = QFileInfo(self.settings.value("Filename", "."))
+        dir_info = path_info.dir()
+        ''':type dir_info: QDir'''
+        filename, active_filter = QFileDialog.getSaveFileName(self, "Neue Datenbank anlegen",
+                                                              dir_info.absolutePath(), str_filter,
+                                                              options=QFileDialog.DontConfirmOverwrite)
+        if active_filter == str_filter_db and not filename.lower().endswith(".db"):     # lower for case insensitivity
+            filename += ".db"           # attach suffix if not entered
+        self.new_database(filename)
 
     def open_database(self, filename: str):
         self.sql_database.setDatabaseName(filename)
@@ -131,6 +148,41 @@ class MainWin(QMainWindow):
             assert isinstance(error, QSqlError)
             self.debug.appendPlainText("Fehler bei Verbindung:")
             self.debug.appendPlainText(error.text())
+
+    def new_database(self, filename: str):
+        file_info = QFileInfo(filename)
+        if file_info.exists():
+            QMessageBox.information(self, "Datei existiert bereits",
+                                    "Die neue Datenbank kann nicht angelegt werden da die Datei bereits existiert. "
+                                    "Lösche die Datei vorher wenn an dieser Stelle eine neue angelegt werden soll.")
+        else:
+            self.sql_database.setDatabaseName(filename)
+            if not self.sql_database.open():
+                error = self.sql_database.lastError()
+                assert isinstance(error, QSqlError)
+                self.debug.appendPlainText("Fehler beim Erstellen der Datenbank: ")
+                self.debug.appendPlainText(error.text())
+            else:
+                # TODO: create proper database schema
+                # sqlite supports only one statement per transaction - splitting statements in a list
+                queries = ['CREATE TABLE "transactions" ('
+                           '`id`            INTEGER PRIMARY KEY AUTOINCREMENT,'
+                           '`account_id`    INTEGER NOT NULL,'
+                           '`date`          TEXT,'
+                           '`original_text` TEXT,'
+                           '`custom_text`   TEXT,'
+                           '`amount`        INTEGER'
+                           ')',
+                           'CREATE TABLE "flags" ('
+                           '`id`            INTEGER PRIMARY KEY AUTOINCREMENT,'
+                           '`name`          TEXT NOT NULL,'
+                           '`description`   TEXT,'
+                           '`value`         INTEGER,'
+                           '`interval`      TEXT'
+                           ')']
+                for query in queries:
+                    sql_query = QSqlQuery(self.sql_database)
+                    sql_query.exec(query)
 
 
 if __name__ == '__main__':
