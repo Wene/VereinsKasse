@@ -66,7 +66,7 @@ class MainWin(QMainWindow):
         self.status_bar = self.statusBar()      # The status bar gets shown as soon as it is used the first time.
         ''':type status_bar: QStatusBar'''
         self.status_bar.showMessage("Keine Datenbank geladen - "
-                                    "Öffne eine Datenbank oder leg eine neue an.")
+                                    "Öffne eine Datenbank oder leg eine neue an.", 3000)
 
         self.sql_database = QSqlDatabase("QSQLITE")
 
@@ -102,12 +102,22 @@ class MainWin(QMainWindow):
                                                               options=QFileDialog.DontConfirmOverwrite)
         if active_filter == str_filter_db and not filename.lower().endswith(".db"):     # lower for case insensitivity
             filename += ".db"           # attach suffix if not entered
-        self.new_database(filename)
+        file_info = QFileInfo(filename)
+        if file_info.exists():
+            QMessageBox.information(self, "Datei existiert bereits",
+                                    "Die neue Datenbank kann nicht angelegt werden da die Datei bereits existiert. "
+                                    "Lösche die Datei vorher wenn an dieser Stelle eine neue angelegt werden soll.")
+        else:
+            self.new_database(filename)
 
     def open_database(self, filename: str):
         self.sql_database.setDatabaseName(filename)
-        if self.sql_database.open():
-
+        if not self.sql_database.open():
+            error = self.sql_database.lastError()
+            assert isinstance(error, QSqlError)
+            self.debug.appendPlainText("Fehler bei Verbindung:")
+            self.debug.appendPlainText(error.text())
+        else:
             # TODO: check for correct DB schema
             table_list = self.sql_database.tables()
             for table in table_list:
@@ -143,19 +153,8 @@ class MainWin(QMainWindow):
 
             # write last successful used filename to settings
             self.settings.setValue("Filename", filename)
-        else:
-            error = self.sql_database.lastError()
-            assert isinstance(error, QSqlError)
-            self.debug.appendPlainText("Fehler bei Verbindung:")
-            self.debug.appendPlainText(error.text())
 
     def new_database(self, filename: str):
-        file_info = QFileInfo(filename)
-        if file_info.exists():
-            QMessageBox.information(self, "Datei existiert bereits",
-                                    "Die neue Datenbank kann nicht angelegt werden da die Datei bereits existiert. "
-                                    "Lösche die Datei vorher wenn an dieser Stelle eine neue angelegt werden soll.")
-        else:
             self.sql_database.setDatabaseName(filename)
             if not self.sql_database.open():
                 error = self.sql_database.lastError()
@@ -165,25 +164,31 @@ class MainWin(QMainWindow):
             else:
                 # TODO: create proper database schema
                 # sqlite supports only one statement per transaction - splitting statements in a list
-                queries = ['CREATE TABLE "transactions" ('
-                           '`id`            INTEGER PRIMARY KEY AUTOINCREMENT,'
-                           '`account_id`    INTEGER NOT NULL,'
-                           '`date`          TEXT,'
-                           '`original_text` TEXT,'
-                           '`custom_text`   TEXT,'
-                           '`amount`        INTEGER'
+                queries = ['CREATE TABLE transactions ('
+                           'id                 INTEGER PRIMARY KEY AUTOINCREMENT,'
+                           'date               TEXT,'
+                           'original_text      TEXT,'
+                           'custom_text        TEXT,'
+                           'amount             INTEGER'
                            ')',
-                           'CREATE TABLE "flags" ('
-                           '`id`            INTEGER PRIMARY KEY AUTOINCREMENT,'
-                           '`name`          TEXT NOT NULL,'
-                           '`description`   TEXT,'
-                           '`value`         INTEGER,'
-                           '`interval`      TEXT'
+                           'CREATE TABLE member ('
+                           'id                 INTEGER PRIMARY KEY AUTOINCREMENT,'
+                           'first_name         TEXT NOT NULL,'
+                           'last_name          TEXT NOT NULL,'
+                           'e-mail             TEXT'
+                           ')',
+                           'CREATE TABLE shares ('
+                           'id                 INTEGER PRIMARY KEY AUTOINCREMENT,'
+                           'name               TEXT,'
+                           'description        TEXT,'
+                           'interval           TEXT,'
+                           'amount             INTEGER'
                            ')']
                 for query in queries:
                     sql_query = QSqlQuery(self.sql_database)
                     sql_query.exec(query)
-
+                self.sql_database.close()
+                self.open_database(filename)
 
 if __name__ == '__main__':
     import sys
