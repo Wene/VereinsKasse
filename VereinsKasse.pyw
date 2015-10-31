@@ -144,13 +144,21 @@ class MainWin(QMainWindow):
             sql_query = QSqlQuery(self.sql_database)
             sql_query.exec("PRAGMA foreign_keys = ON")
 
-            model = QSqlQueryModel(self)
-            model.setQuery("SELECT first_name, last_name, nick_name, email FROM member", self.sql_database)
-            model.setHeaderData(0, Qt.Horizontal, "Vorname")
-            model.setHeaderData(1, Qt.Horizontal, "Name")
-            model.setHeaderData(2, Qt.Horizontal, "Nickname")
-            model.setHeaderData(3, Qt.Horizontal, "E-Mail Adresse")
-            self.member_view.setModel(model)
+            # TODO: learn to use Model/View concept
+            account_model = QSqlQueryModel(self)
+            account_model.setQuery("SELECT date, custom_text, amount FROM transactions", self.sql_database)
+            account_model.setHeaderData(0, Qt.Horizontal, "Datum")
+            account_model.setHeaderData(1, Qt.Horizontal, "Bezeichnung")
+            account_model.setHeaderData(2, Qt.Horizontal, "Betrag")
+            self.account_view.setModel(account_model)
+
+            member_model = QSqlQueryModel(self)
+            member_model.setQuery("SELECT first_name, last_name, nick_name, email FROM member", self.sql_database)
+            member_model.setHeaderData(0, Qt.Horizontal, "Vorname")
+            member_model.setHeaderData(1, Qt.Horizontal, "Name")
+            member_model.setHeaderData(2, Qt.Horizontal, "Nickname")
+            member_model.setHeaderData(3, Qt.Horizontal, "E-Mail Adresse")
+            self.member_view.setModel(member_model)
 
             # write last successful used filename to settings
             self.settings.setValue("Filename", filename)
